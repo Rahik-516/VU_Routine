@@ -1,6 +1,5 @@
 import React from 'react';
 import { SEMESTERS } from '@/types/index';
-import type { Semester } from '@/types/index';
 import { useAppStore } from '@/store';
 
 export const SemesterSelector: React.FC = () => {

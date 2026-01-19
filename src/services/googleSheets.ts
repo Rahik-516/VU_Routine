@@ -410,17 +410,12 @@ function parseSemesterTimetable(data: string[][], semesterName: string): Semeste
         // Parse Line 2: "CSE 3201 (4th Sem. A Sec)"
         // Extract course code (outside parentheses)
         let courseCode = '';
-        let semester = '';
         let section = '';
         
         // Find parentheses content
         const parenMatch = line2.match(/\(([^)]+)\)/);
         if (parenMatch) {
           const insideParens = parenMatch[1]; // e.g., "4th Sem. A Sec"
-          
-          // Extract semester
-          const semMatch = insideParens.match(/(\d+\w*)\s+Sem/i);
-          if (semMatch) semester = semMatch[1];
           
           // Extract section
           const secMatch = insideParens.match(/([A-Z])\s+Sec/i);
