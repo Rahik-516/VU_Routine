@@ -148,6 +148,16 @@ export const AboutPage: React.FC = () => {
           automatically appear in this application within 5 minutes.
         </p>
       </div>
+
+      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-lg p-6 border border-indigo-200 dark:border-indigo-700">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          Developer
+        </h3>
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          Developed by <span className="font-semibold">I. S. M Rahik</span> - 8th Semester, Section F<br/>
+          Computer Science and Engineering Department, Varendra University
+        </p>
+      </div>
     </div>
   );
 };
