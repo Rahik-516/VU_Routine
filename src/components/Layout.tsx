@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
 
 export const Layout: React.FC = () => {
   return (
@@ -12,6 +13,9 @@ export const Layout: React.FC = () => {
           <Outlet />
         </div>
       </main>
+
+      {/* Offline Indicator */}
+      <OfflineIndicator />
     </div>
   );
 };

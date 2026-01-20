@@ -8,6 +8,7 @@ import { LabsPage } from '@/pages/LabsPage';
 import { CommitteePage } from '@/pages/CommitteePage';
 import { AboutPage } from '@/pages/AboutPage';
 import { useAppStore } from '@/store';
+import { initializeAutoSync, cleanupAutoSync } from '@/services/autoSync';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -31,6 +32,12 @@ function AppContent() {
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  // Initialize auto-sync on mount
+  useEffect(() => {
+    initializeAutoSync();
+    return () => cleanupAutoSync();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

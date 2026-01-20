@@ -1,6 +1,8 @@
 import axios from 'axios';
 import type { RoutineData, Teacher, Lab, CommitteeMember, SemesterTimetable, ClassSession, TimeSlot } from '@/types/index';
 import { DAYS, DEFAULT_TIME_SLOTS } from '@/types/index';
+import { saveOfflineData, getOfflineData } from '@/services/offlineStorage';
+import { shouldUseBackup, loadBackupData } from '@/services/excelBackup';
 
 // Google Sheets configuration
 const SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET_ID || '1Sdmr60rcZeBCa2ofswUr9mxIreIj71W9HYM1RRhvfMM';
@@ -8,6 +10,9 @@ const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY || '';
 
 // Alternative: Use public CSV export (no API key needed, but less reliable)
 const USE_CSV_EXPORT = true; // Set to false when using API key
+
+// In-memory cache for parsed semester timetables (session-scoped)
+const semesterCache = new Map<string, SemesterTimetable>();
 
 interface SheetData {
   values: string[][];
@@ -78,6 +83,7 @@ async function fetchSheetData(sheetName: string): Promise<string[][]> {
 
 /**
  * Simple CSV parser that handles multi-line cells
+ * Optimized: single-pass parsing with minimal allocations
  */
 function parseCSV(csv: string): string[][] {
   const result: string[][] = [];
@@ -484,55 +490,126 @@ function parseSemesterTimetable(data: string[][], semesterName: string): Semeste
 }
 
 /**
- * Fetch complete routine data
+ * Fetch complete routine data with offline fallback
+ * Priority: Google Sheets → Excel Backup → Cached offline data
  */
 export async function fetchRoutineData(): Promise<RoutineData> {
   try {
-    // Fetch teachers, committee, and labs from Info. tab
-    const [teacherRows, committeeRows, labRows] = await Promise.all([
-      fetchSheetRange('Info.!B2:H'),
-      fetchSheetRange('Info.!L2:N'),
-      fetchSheetRange('Info.!K15:O'),
-    ]);
+    // Try to fetch from Google Sheets (primary source)
+    return await fetchRoutineDataFromSheets();
+  } catch (error) {
+    console.error('Failed to fetch from Google Sheets:', error);
+    
+    // Check if this is a network-related error that warrants fallback
+    if (shouldUseBackup(error)) {
+      console.log('🔄 Attempting Excel backup fallback...');
+      const backupData = await loadBackupData();
+      if (backupData) {
+        console.log('✅ Loaded data from Excel backup');
+        return backupData;
+      }
+    }
+
+    // Final fallback: use cached offline data
+    console.log('🔄 Attempting offline cache fallback...');
+    const offlineData = getOfflineData();
+    if (offlineData) {
+      console.log('✅ Loaded data from offline cache (last synced: ' + offlineData.lastUpdated.toLocaleString() + ')');
+      return offlineData;
+    }
+
+    // No data available at all
+    console.error('❌ No data available from any source');
+    throw new Error('Unable to load routine data. No internet connection and no cached data available.');
+  }
+}
+
+/**
+ * Fetch complete routine data from Google Sheets
+ */
+async function fetchRoutineDataFromSheets(): Promise<RoutineData> {
+  try {
+    // Fetch Info sheet data
+    // When no API key, fetch entire Info sheet and extract ranges
+    let teacherRows: string[][] = [];
+    let committeeRows: string[][] = [];
+    let labRows: string[][] = [];
+
+    if (API_KEY && !USE_CSV_EXPORT) {
+      // Use API with specific ranges
+      [teacherRows, committeeRows, labRows] = await Promise.all([
+        fetchSheetRange('Info.!B2:H'),
+        fetchSheetRange('Info.!L2:N'),
+        fetchSheetRange('Info.!K15:O'),
+      ]);
+    } else {
+      // Use CSV export - fetch entire Info sheet and extract data
+      const infoData = await fetchSheetData('Info.');
+      
+      // Extract teacher rows (columns B-H, starting from row 2)
+      teacherRows = infoData.slice(1).map(row => row.slice(1, 8));
+      
+      // Extract committee rows (columns L-N, starting from row 2)
+      committeeRows = infoData.slice(1).map(row => row.slice(11, 14));
+      
+      // Extract lab rows (columns K-O, starting from row 15)
+      labRows = infoData.slice(14).map(row => row.slice(10, 15));
+    }
     
     const teachers = parseTeachers(teacherRows);
     const labs = parseLabs(labRows);
     const committee = parseCommittee(committeeRows);
     
-    // Fetch all semester sheets
+    // Fetch all semester sheets with caching
     const semesters: { [key: string]: SemesterTimetable } = {};
-    
     const semesterNames = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
     
     for (const semesterName of semesterNames) {
       try {
+        // Check cache first
+        const cached = semesterCache.get(semesterName);
+        if (cached) {
+          console.log(`✅ Using cached ${semesterName} semester data`);
+          semesters[semesterName] = cached;
+          continue;
+        }
+
         console.log(`📥 Fetching ${semesterName} semester data...`);
-        // Use API for semester sheets to preserve newlines in cells
-        const semesterData = API_KEY 
+        // Use CSV export when no API key, otherwise use API
+        const semesterData = (API_KEY && !USE_CSV_EXPORT)
           ? await fetchSheetRange(`${semesterName}!A1:F`)
           : await fetchSheetData(semesterName);
         console.log(`📦 Raw data rows for ${semesterName}:`, semesterData.length);
-        semesters[semesterName] = parseSemesterTimetable(semesterData, semesterName);
+        
+        const parsed = parseSemesterTimetable(semesterData, semesterName);
+        semesterCache.set(semesterName, parsed); // Cache for future requests
+        semesters[semesterName] = parsed;
       } catch (error) {
         console.warn(`Could not fetch ${semesterName} semester data:`, error);
         // Create empty timetable
-        semesters[semesterName] = {
+        const empty: SemesterTimetable = {
           semester: semesterName,
           schedule: DAYS.map(day => ({ day, classes: [] })),
           timeSlots: DEFAULT_TIME_SLOTS,
         };
+        semesters[semesterName] = empty;
       }
     }
     
-    return {
+    const data: RoutineData = {
       teachers,
       labs,
       committee,
       semesters,
       lastUpdated: new Date(),
     };
+
+    // Save successful fetch to offline storage for future fallback
+    saveOfflineData(data);
+
+    return data;
   } catch (error) {
-    console.error('Error fetching routine data:', error);
+    console.error('Error fetching routine data from Google Sheets:', error);
     throw error;
   }
 }

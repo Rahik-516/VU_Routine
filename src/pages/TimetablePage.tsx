@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useRoutineData } from '@/hooks/useRoutineData';
 import { useAppStore } from '@/store';
 import { Calendar } from 'lucide-react';
@@ -20,6 +20,48 @@ export const TimetablePage: React.FC = () => {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
   const todayName = days[today.getDay()];
 
+  // Memoize enriched classes - must be called before early returns
+  const semesterData = data?.semesters[currentSemester];
+  
+  const enrichedClasses = useMemo(() => {
+    if (!data || !semesterData) return [];
+    const allClasses = semesterData.schedule.flatMap((day) => day.classes) || [];
+    return enrichClassData(allClasses, data.teachers);
+  }, [data, semesterData]);
+
+  // Memoize filtered and enriched schedule - must be called before early returns
+  const filteredSchedule = useMemo(() => {
+    if (!data || !semesterData) return [];
+
+    const searchTerm = searchQuery.trim().toLowerCase();
+
+    return semesterData.schedule
+      .filter((day) => !currentDayOnly || day.day === todayName)
+      .map((day) => ({
+        ...day,
+        classes: enrichClassData(day.classes, data.teachers).filter((c) => {
+          // Apply section filter
+          if (filterSection && c.section !== filterSection) return false;
+
+          // Apply search filter
+          if (searchTerm) {
+            const courseMatch = c.courseCode.toLowerCase().includes(searchTerm);
+            const teacherMatch = 
+              (c.teacherName && c.teacherName.toLowerCase().includes(searchTerm)) ||
+              (c.teacherInitials && c.teacherInitials.toLowerCase().includes(searchTerm));
+            const roomMatch = c.room && c.room.toLowerCase().includes(searchTerm);
+
+            return courseMatch || teacherMatch || roomMatch;
+          }
+
+          return true;
+        }),
+      }));
+  }, [data, semesterData, filterSection, searchQuery, currentDayOnly, todayName]);
+
+  const hasClasses = filteredSchedule.some((day) => day.classes.length > 0);
+
+  // Early returns AFTER all hooks
   if (isLoading) {
     return <LoadingSpinner message="Loading timetable data..." />;
   }
@@ -36,10 +78,6 @@ export const TimetablePage: React.FC = () => {
   if (!data) {
     return <ErrorMessage message="No data available" />;
   }
-
-  const semesterData = data.semesters[currentSemester];
-  const allClasses = semesterData?.schedule.flatMap((day) => day.classes) || [];
-  const enrichedClasses = enrichClassData(allClasses, data.teachers);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -89,64 +127,31 @@ export const TimetablePage: React.FC = () => {
       {/* Timetable Grid */}
       {semesterData ? (
         <>
-          {(() => {
-            const searchTerm = searchQuery.trim().toLowerCase();
-
-            const filteredSchedule = semesterData.schedule
-              .filter((day) => !currentDayOnly || day.day === todayName)
-              .map((day) => ({
-                ...day,
-                classes: enrichClassData(day.classes, data.teachers).filter((c) => {
-                  // Apply section filter
-                  if (filterSection && c.section !== filterSection) return false;
-
-                  // Apply search filter
-                  if (searchTerm) {
-                    const courseMatch = c.courseCode.toLowerCase().includes(searchTerm);
-                    const teacherMatch = 
-                      (c.teacherName && c.teacherName.toLowerCase().includes(searchTerm)) ||
-                      (c.teacherInitials && c.teacherInitials.toLowerCase().includes(searchTerm));
-                    const roomMatch = c.room && c.room.toLowerCase().includes(searchTerm);
-
-                    return courseMatch || teacherMatch || roomMatch;
-                  }
-
-                  return true;
-                }),
-              }));
-            
-            const hasClasses = filteredSchedule.some((day) => day.classes.length > 0);
-            
-            if (!hasClasses && (filterSection || searchTerm)) {
-              const filterReason = filterSection && searchTerm
-                ? `Section ${filterSection} matching "${searchQuery}"`
-                : searchTerm
-                ? `matching "${searchQuery}"`
-                : `Section ${filterSection}`;
-
-              return (
-                <div className="text-center py-8 sm:py-12 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-                  <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg px-4">
-                    No classes found {filterReason} in {currentSemester} semester
-                  </p>
-                  <p className="text-gray-500 dark:text-gray-500 text-xs sm:text-sm mt-2 px-4">
-                    {searchTerm && !filterSection && 'Try a different search term'}
-                    {filterSection && !searchTerm && 'Try selecting "All Sections" or a different section'}
-                    {filterSection && searchTerm && 'Try adjusting your filters or search term'}
-                  </p>
-                </div>
-              );
-            }
-            
-            return (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-                <TimetableGrid
-                  schedule={filteredSchedule}
-                  timeSlots={semesterData.timeSlots}
-                />
-              </div>
-            );
-          })()}
+          {!hasClasses && (filterSection || searchQuery.trim()) ? (
+            <div className="text-center py-8 sm:py-12 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+              <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg px-4">
+                No classes found {
+                  filterSection && searchQuery.trim()
+                    ? `in Section ${filterSection} matching "${searchQuery}"`
+                    : searchQuery.trim()
+                    ? `matching "${searchQuery}"`
+                    : `in Section ${filterSection}`
+                } in {currentSemester} semester
+              </p>
+              <p className="text-gray-500 dark:text-gray-500 text-xs sm:text-sm mt-2 px-4">
+                {searchQuery.trim() && !filterSection && 'Try a different search term'}
+                {filterSection && !searchQuery.trim() && 'Try selecting "All Sections" or a different section'}
+                {filterSection && searchQuery.trim() && 'Try adjusting your filters or search term'}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+              <TimetableGrid
+                schedule={filteredSchedule}
+                timeSlots={semesterData.timeSlots}
+              />
+            </div>
+          )}
         </>
       ) : (
         <div className="text-center py-8 sm:py-12">
