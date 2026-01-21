@@ -8,6 +8,27 @@ export const TeachersPage: React.FC = () => {
   const { data, isLoading, error, refetch } = useRoutineData();
   const [search, setSearch] = useState('');
 
+  const filteredTeachers = useMemo(() => {
+    if (!data || data.teachers.length === 0) {
+      return [];
+    }
+
+    const term = search.trim().toLowerCase();
+
+    return data.teachers
+      .filter((t) => t.name && t.initial) // ensure required fields
+      .filter((t) => {
+        // Exclude header/metadata-like rows
+        const initial = t.initial.toLowerCase();
+        const name = t.name.toLowerCase();
+        const looksHeader = initial.includes('initial') && name.includes('name');
+        if (looksHeader) return false;
+
+        if (!term) return true;
+        return name.includes(term) || initial.includes(term);
+      });
+  }, [data, search]);
+
   if (isLoading) {
     return <LoadingSpinner message="Loading teachers..." />;
   }
@@ -24,23 +45,6 @@ export const TeachersPage: React.FC = () => {
   if (!data || data.teachers.length === 0) {
     return <ErrorMessage message="No teacher data available" />;
   }
-
-  const filteredTeachers = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
-    return data.teachers
-      .filter((t) => t.name && t.initial) // ensure required fields
-      .filter((t) => {
-        // Exclude header/metadata-like rows
-        const initial = t.initial.toLowerCase();
-        const name = t.name.toLowerCase();
-        const looksHeader = initial.includes('initial') && name.includes('name');
-        if (looksHeader) return false;
-
-        if (!term) return true;
-        return name.includes(term) || initial.includes(term);
-      });
-  }, [data.teachers, search]);
 
   return (
     <div className="space-y-4 sm:space-y-6">

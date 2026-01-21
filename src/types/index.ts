@@ -72,9 +72,10 @@ export const SEMESTERS: Semester[] = ['1st', '2nd', '3rd', '4th', '5th', '6th', 
 export const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 
 export const DEFAULT_TIME_SLOTS: TimeSlot[] = [
-  { slot: 1, startTime: '09:00', endTime: '10:30' },
-  { slot: 2, startTime: '10:30', endTime: '12:00' },
-  { slot: 3, startTime: '12:00', endTime: '13:30' },
-  { slot: 4, startTime: '14:00', endTime: '15:30' },
-  { slot: 5, startTime: '15:30', endTime: '17:00' },
+  { slot: 1, startTime: '09:00', endTime: '10:25' },
+  { slot: 2, startTime: '10:25', endTime: '11:50' },
+  { slot: 3, startTime: '11:50', endTime: '13:15' },
+  { slot: 4, startTime: '13:15', endTime: '15:10' },
+  { slot: 5, startTime: '15:10', endTime: '16:35' },
+  { slot: 6, startTime: '16:35', endTime: '18:00' },
 ];

@@ -69,7 +69,8 @@ async function fetchSheetData(sheetName: string): Promise<string[][]> {
     }
   } else {
     // Use Google Sheets API v4
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}!A1:Z100?key=${API_KEY}`;
+    // Use unlimited range (A1:Z will get all data in those columns)
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}!A1:Z?key=${API_KEY}`;
     
     try {
       const response = await axios.get<SheetData>(url);
@@ -140,14 +141,30 @@ function parseCSV(csv: string): string[][] {
 }
 
 /**
- * Parse teacher list from main sheet
+ * Parse teacher list from Info. sheet (B2:H)
+ * 
+ * Row 1: Headers title "Teacher's Information"
+ * Row 2+: Teacher data
+ *   B = Initial, C = Name, D = Designation, E = Department, F = University, G = Contact, H = Email
+ * 
+ * Parsing rules:
+ * - Stop when all cells B-H are empty
+ * - Allow missing contact/email (null)
+ * - Require both initial and name to be valid
+ * - Handle sparse data (continue searching even if empty rows exist)
  */
 function parseTeachers(data: string[][]): Teacher[] {
   const teachers: Teacher[] = [];
 
   if (!data || data.length === 0) {
+    console.log('📋 No teacher data to parse');
     return teachers;
   }
+
+  console.log(`🔍 Parsing ${data.length} rows of teacher data...`);
+  
+  let consecutiveEmptyRows = 0;
+  const MAX_CONSECUTIVE_EMPTY = 5; // Allow up to 5 empty rows before stopping
 
   for (let rowIdx = 0; rowIdx < data.length; rowIdx++) {
     const row = data[rowIdx] || [];
@@ -159,15 +176,35 @@ function parseTeachers(data: string[][]): Teacher[] {
     const contact = (row[5] || '').trim();
     const email = (row[6] || '').trim();
 
-    const isRowEmpty = [initial, name, designation, department, university, contact, email]
+    const allEmpty = [initial, name, designation, department, university, contact, email]
       .every((cell) => cell === '');
 
-    if (isRowEmpty) {
-      break; // Stop once we reach the first fully empty row in B-H
+    if (allEmpty) {
+      consecutiveEmptyRows++;
+      // Only stop if we have too many consecutive empty rows
+      if (consecutiveEmptyRows > MAX_CONSECUTIVE_EMPTY) {
+        console.log(`⊘ Stopping teacher parsing after ${MAX_CONSECUTIVE_EMPTY} consecutive empty rows`);
+        break;
+      }
+      continue;
     }
 
+    // Reset counter if we found data
+    consecutiveEmptyRows = 0;
+
+    // Skip header-like rows
+    if (initial.toLowerCase().includes('initial') && name.toLowerCase().includes('name')) {
+      if (import.meta.env.DEV) {
+        console.log(`  ⊘ Skipping header row`);
+      }
+      continue;
+    }
+
+    // Require at least initial and name
     if (!initial || !name) {
-      console.warn(`⚠️ Skipping teacher row ${rowIdx + 2}: missing initial or name`);
+      if (import.meta.env.DEV) {
+        console.warn(`  ⚠️ Row ${rowIdx + 1}: Skipping (missing initial or name)`);
+      }
       continue;
     }
 
@@ -182,8 +219,9 @@ function parseTeachers(data: string[][]): Teacher[] {
     });
   }
 
+  console.log(`👩‍🏫 Parsed ${teachers.length} teachers`);
   if (import.meta.env.DEV) {
-    console.log('👩‍🏫 Parsed teachers:', teachers);
+    console.log('   Teachers:', teachers);
   }
 
   return teachers;
@@ -313,10 +351,32 @@ function parseSemesterTimetable(data: string[][], semesterName: string): Semeste
   console.log(`\n📊 ===== Parsing ${semesterName} =====`);
   console.log(`   Rows: ${data.length}, Cols: ${data[0]?.length || 0}`);
 
-  // STEP 1: Parse slot headers from row 0 (columns B onwards = indices 1-5)
+  // STEP 1: Parse slot headers from row 0 (columns B onwards)
+  // Dynamically detect the number of slots from the header row
   const headerRow = data[0] || [];
   
-  for (let slotIdx = 1; slotIdx <= 5; slotIdx++) {
+  // Count how many slot headers exist (start from column B = index 1)
+  // Stop when we encounter an empty cell or non-slot content
+  let maxSlotIdx = 0;
+  for (let idx = 1; idx < headerRow.length; idx++) {
+    const cellContent = headerRow[idx]?.trim() || '';
+    // Check if this looks like a slot header (contains "Slot" or time info)
+    if (cellContent && (cellContent.toLowerCase().includes('slot') || cellContent.includes(':'))) {
+      maxSlotIdx = idx;
+    } else if (!cellContent && maxSlotIdx > 0) {
+      // Stop when we hit an empty cell after finding slots
+      break;
+    }
+  }
+  
+  // If no slots found, default to 5
+  if (maxSlotIdx === 0) {
+    maxSlotIdx = 5;
+  }
+  
+  console.log(`🎯 Detected ${maxSlotIdx} slots in header row`);
+  
+  for (let slotIdx = 1; slotIdx <= maxSlotIdx; slotIdx++) {
     const slotHeader = headerRow[slotIdx]?.trim() || '';
     
     let startTime = '';
@@ -394,8 +454,8 @@ function parseSemesterTimetable(data: string[][], semesterName: string): Semeste
     
     if (!currentDay) continue;
     
-    // Parse each slot (columns B-F = indices 1-5)
-    for (let slotIdx = 1; slotIdx <= 5; slotIdx++) {
+    // Parse each slot dynamically based on the number of time slots detected
+    for (let slotIdx = 1; slotIdx <= timeSlots.length; slotIdx++) {
       const cellContent = row[slotIdx]?.trim();
       if (!cellContent || cellContent === '-') continue;
       
@@ -535,25 +595,67 @@ async function fetchRoutineDataFromSheets(): Promise<RoutineData> {
     let committeeRows: string[][] = [];
     let labRows: string[][] = [];
 
-    if (API_KEY && !USE_CSV_EXPORT) {
-      // Use API with specific ranges
+    if (API_KEY) {
+      // ALWAYS use API when available - CSV export has row limits
+      console.log(`📡 Using Google Sheets API (fetching all data dynamically)`);
       [teacherRows, committeeRows, labRows] = await Promise.all([
         fetchSheetRange('Info.!B2:H'),
         fetchSheetRange('Info.!L2:N'),
         fetchSheetRange('Info.!K15:O'),
       ]);
-    } else {
-      // Use CSV export - fetch entire Info sheet and extract data
+    } else if (USE_CSV_EXPORT) {
+      // Fallback to CSV export only if no API key
+      console.log(`📄 Using CSV export (API key not available)`);
       const infoData = await fetchSheetData('Info.');
+      console.log(`📊 Info sheet has ${infoData.length} total rows`);
+      if (infoData.length > 0) {
+        console.log(`   First row columns: ${infoData[0].length}`);
+        console.log(`   Sample first row (A1:H1): "${infoData[0].slice(0, 8).join('" | "')}"` );
+        if (infoData.length > 2) {
+          console.log(`   Sample data row (A3:H3): "${infoData[2].slice(0, 8).join('" | "')}"` );
+        }
+      }
       
       // Extract teacher rows (columns B-H, starting from row 2)
-      teacherRows = infoData.slice(1).map(row => row.slice(1, 8));
+      // Row 1 (index 0) = Title row
+      // Row 2 (index 1) = Header row OR first teacher (depends on sheet)
+      // Skip title row, extract from row 2 onwards
+      teacherRows = infoData.slice(1).map(row => {
+        // Get columns B-H (indices 1-7, but slice is exclusive on end, so 1-8)
+        const extracted = row.slice(1, 8);
+        // Pad with empty strings if row doesn't have enough columns
+        while (extracted.length < 7) {
+          extracted.push('');
+        }
+        return extracted;
+      });
+      console.log(`👨‍🏫 Extracted ${teacherRows.length} rows for teacher parsing`);
+      if (teacherRows.length > 0) {
+        console.log(`   First extracted row: "${teacherRows[0].join('" | "')}"` );
+        console.log(`   Last extracted row: "${teacherRows[teacherRows.length - 1].join('" | "')}"` );
+      }
       
       // Extract committee rows (columns L-N, starting from row 2)
-      committeeRows = infoData.slice(1).map(row => row.slice(11, 14));
+      committeeRows = infoData.slice(1).map(row => {
+        const extracted = row.slice(11, 14);
+        while (extracted.length < 3) {
+          extracted.push('');
+        }
+        return extracted;
+      });
+      console.log(`📋 Extracted ${committeeRows.length} rows for committee parsing`);
       
       // Extract lab rows (columns K-O, starting from row 15)
-      labRows = infoData.slice(14).map(row => row.slice(10, 15));
+      labRows = infoData.slice(14).map(row => {
+        const extracted = row.slice(10, 15);
+        while (extracted.length < 5) {
+          extracted.push('');
+        }
+        return extracted;
+      });
+      console.log(`🔬 Extracted ${labRows.length} rows for lab parsing`);
+    } else {
+      throw new Error('No data fetching method available (no API key and CSV export disabled)');
     }
     
     const teachers = parseTeachers(teacherRows);

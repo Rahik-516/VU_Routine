@@ -15,4 +15,21 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
   },
+  build: {
+    // Enable code splitting for better caching and parallel loading
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['react', 'react-dom', 'react-router-dom'],
+          'query': ['@tanstack/react-query'],
+          'state': ['zustand'],
+          'icons': ['lucide-react'],
+          'utils': ['axios', 'date-fns'],
+        },
+      },
+    },
+    // Optimize for faster builds
+    minify: 'esbuild',
+    sourcemap: false, // Disable sourcemaps in production (saves ~200KB)
+  },
 })

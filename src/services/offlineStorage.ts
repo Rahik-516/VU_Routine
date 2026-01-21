@@ -16,6 +16,7 @@ interface SyncStatus {
 /**
  * Save routine data to localStorage for offline access
  * This persists the last successfully fetched data
+ * Old data is automatically replaced with new data
  */
 export function saveOfflineData(data: RoutineData): void {
   try {
@@ -25,7 +26,7 @@ export function saveOfflineData(data: RoutineData): void {
     });
     localStorage.setItem(STORAGE_KEY, serialized);
     updateSyncStatus();
-    console.log('✅ Offline data saved to localStorage');
+    console.log('✅ Offline data saved to localStorage (old data replaced with new)');
   } catch (error) {
     console.error('Failed to save offline data:', error);
   }

@@ -6,7 +6,7 @@ import { TimetableGrid } from '@/components/TimetableGrid';
 import { SemesterSelector } from '@/components/SemesterSelector';
 import { SectionSelector } from '@/components/SectionSelector';
 import { SearchBar } from '@/components/SearchBar';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { TimetableSkeleton } from '@/components/TimetableSkeleton';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { LastUpdated } from '@/components/LastUpdated';
 import { NextClassWidget } from '@/components/NextClassWidget';
@@ -62,11 +62,11 @@ export const TimetablePage: React.FC = () => {
   const hasClasses = filteredSchedule.some((day) => day.classes.length > 0);
 
   // Early returns AFTER all hooks
-  if (isLoading) {
-    return <LoadingSpinner message="Loading timetable data..." />;
+  if (isLoading && !data) {
+    return <TimetableSkeleton />;
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <ErrorMessage
         message="Failed to load timetable data. Please check your internet connection."
@@ -82,14 +82,14 @@ export const TimetablePage: React.FC = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+      <div className="bg-gradient-to-r from-primary-600/10 to-purple-600/10 border border-primary-500/20 rounded-2xl p-6">
+        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
           Class Routine - {currentSemester} Semester
           {filterSection && (
-            <span className="text-primary-600 dark:text-primary-400"> - Section {filterSection}</span>
+            <span className="text-primary-400"> - Section {filterSection}</span>
           )}
         </h1>
-        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+        <p className="text-sm sm:text-base text-gray-400">
           CSE Department, Varendra University - Spring 2026
         </p>
       </div>
@@ -111,10 +111,10 @@ export const TimetablePage: React.FC = () => {
       {/* Today's Schedule Button */}
       <button
         onClick={() => setCurrentDayOnly(!currentDayOnly)}
-        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all min-h-[44px] ${
+        className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all duration-200 min-h-[44px] shadow-md ${
           currentDayOnly
-            ? 'bg-primary-600 text-white shadow-lg'
-            : 'bg-white dark:bg-gray-800 text-primary-600 dark:text-primary-400 border border-primary-300 dark:border-primary-600 hover:bg-primary-50 dark:hover:bg-gray-700'
+            ? 'bg-gradient-to-r from-primary-600 to-purple-600 text-white shadow-primary-500/30 hover:shadow-primary-500/50 hover:scale-[1.02]'
+            : 'bg-gray-800/90 text-gray-200 border border-gray-700/50 hover:bg-gray-800 hover:scale-[1.02]'
         }`}
       >
         <Calendar className="w-5 h-5" />
@@ -128,8 +128,8 @@ export const TimetablePage: React.FC = () => {
       {semesterData ? (
         <>
           {!hasClasses && (filterSection || searchQuery.trim()) ? (
-            <div className="text-center py-8 sm:py-12 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-              <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg px-4">
+            <div className="text-center py-8 sm:py-12 bg-gray-800/90 rounded-2xl shadow-lg border border-gray-700/50">
+              <p className="text-gray-300 text-base sm:text-lg px-4">
                 No classes found {
                   filterSection && searchQuery.trim()
                     ? `in Section ${filterSection} matching "${searchQuery}"`
@@ -145,10 +145,11 @@ export const TimetablePage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="bg-gray-800/90 rounded-2xl p-3 sm:p-6 shadow-lg border border-gray-700/50">
               <TimetableGrid
                 schedule={filteredSchedule}
                 timeSlots={semesterData.timeSlots}
+                filterSection={filterSection}
               />
             </div>
           )}

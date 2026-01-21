@@ -35,14 +35,20 @@ export const SectionSelector: React.FC = () => {
           <button
             onClick={() => setFilterSection('')}
             className={`
-              px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg font-medium text-sm transition-all
-              min-h-[44px] touch-manipulation
+              px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg font-medium text-sm transition-all duration-200
+              min-h-[44px] touch-manipulation relative
               ${filterSection === ''
-                ? 'bg-primary-600 text-white shadow-lg'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95'
+                ? 'bg-gradient-to-r from-primary-500 to-purple-500 text-white shadow-lg shadow-primary-400/30 scale-105 ring-2 ring-primary-300 ring-offset-2 ring-offset-gray-900'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 hover:scale-[1.02] active:scale-95'
               }
             `}
           >
+            {filterSection === '' && (
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-primary-500"></span>
+              </span>
+            )}
             <span className="hidden sm:inline">All Sections</span>
             <span className="sm:hidden">All</span>
           </button>
@@ -51,14 +57,20 @@ export const SectionSelector: React.FC = () => {
               key={section}
               onClick={() => setFilterSection(section)}
               className={`
-                px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg font-medium text-sm transition-all
-                min-h-[44px] touch-manipulation
+                px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg font-medium text-sm transition-all duration-200
+                min-h-[44px] touch-manipulation relative
                 ${filterSection === section
-                  ? 'bg-primary-600 text-white shadow-lg'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95'
+                  ? 'bg-gradient-to-r from-primary-500 to-purple-500 text-white shadow-lg shadow-primary-400/30 scale-105 ring-2 ring-primary-300 ring-offset-2 ring-offset-gray-900'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 hover:scale-[1.02] active:scale-95'
                 }
               `}
             >
+              {filterSection === section && (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-primary-500"></span>
+                </span>
+              )}
               <span className="hidden sm:inline">Section {section}</span>
               <span className="sm:hidden">{section}</span>
             </button>
