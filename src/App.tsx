@@ -7,7 +7,6 @@ const TeachersPage = lazy(() => import('@/pages/TeachersPage').then(m => ({ defa
 const LabsPage = lazy(() => import('@/pages/LabsPage').then(m => ({ default: m.LabsPage })));
 const CommitteePage = lazy(() => import('@/pages/CommitteePage').then(m => ({ default: m.CommitteePage })));
 const AboutPage = lazy(() => import('@/pages/AboutPage').then(m => ({ default: m.AboutPage })));
-import { useAppStore } from '@/store';
 import { initializeAutoSync, cleanupAutoSync } from '@/services/autoSync';
 import { fetchRoutineData } from '@/services/googleSheets';
 
