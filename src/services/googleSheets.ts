@@ -3,9 +3,11 @@ import type { RoutineData, Teacher, Lab, CommitteeMember, SemesterTimetable, Cla
 import { DAYS, DEFAULT_TIME_SLOTS } from '@/types/index';
 import { saveOfflineData, getOfflineData } from '@/services/offlineStorage';
 import { shouldUseBackup, loadBackupData } from '@/services/excelBackup';
+import { SHEETS_CONFIG } from '@/config/index';
 
 // Google Sheets configuration
-const SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET_ID || '1Sdmr60rcZeBCa2ofswUr9mxIreIj71W9HYM1RRhvfMM';
+const SPREADSHEET_ID = import.meta.env.VITE_SPREADSHEET_ID || SHEETS_CONFIG.SPREADSHEET_ID;
+const COURSES_SPREADSHEET_ID = SHEETS_CONFIG.COURSES_SPREADSHEET_ID;
 const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY || '';
 
 // Alternative: Use public CSV export (no API key needed, but less reliable)
@@ -662,6 +664,21 @@ async function fetchRoutineDataFromSheets(): Promise<RoutineData> {
     const labs = parseLabs(labRows);
     const committee = parseCommittee(committeeRows);
     
+    // Load course data for enrichment
+    console.log(`📚 Loading course data...`);
+    let courseMap: Map<string, string> = new Map();
+    try {
+      const coursesData = await fetchCoursesData();
+      if (coursesData.length > 0) {
+        courseMap = parseCourses(coursesData);
+        console.log(`✅ Course map loaded with ${courseMap.size} entries`);
+      } else {
+        console.warn(`⚠️ No course data found, will use course codes as names`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to load courses, will proceed without course names:`, error);
+    }
+    
     // Fetch all semester sheets with caching
     const semesters: { [key: string]: SemesterTimetable } = {};
     const semesterNames = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
@@ -684,6 +701,12 @@ async function fetchRoutineDataFromSheets(): Promise<RoutineData> {
         console.log(`📦 Raw data rows for ${semesterName}:`, semesterData.length);
         
         const parsed = parseSemesterTimetable(semesterData, semesterName);
+        
+        // Enrich with course names if available
+        if (courseMap.size > 0) {
+          enrichWithCourseNames(parsed, courseMap);
+        }
+        
         semesterCache.set(semesterName, parsed); // Cache for future requests
         semesters[semesterName] = parsed;
       } catch (error) {
@@ -713,6 +736,113 @@ async function fetchRoutineDataFromSheets(): Promise<RoutineData> {
   } catch (error) {
     console.error('Error fetching routine data from Google Sheets:', error);
     throw error;
+  }
+}
+
+/**
+ * Normalize course code for consistent matching
+ * Examples: "CSE-1100" -> "CSE 1100", "cse 1100" -> "CSE 1100"
+ */
+function normalizeCourseCode(code: string): string {
+  return code
+    .toUpperCase()
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Fetch course data from Courses spreadsheet
+ * Expects sheet named "Sheet1" with columns: A=course_code, B=course_name
+ */
+async function fetchCoursesData(): Promise<string[][]> {
+  const url = `https://docs.google.com/spreadsheets/d/${COURSES_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
+
+  try {
+    const response = await axios.get(url, {
+      responseType: 'text',
+    });
+
+    console.log(`🔄 Fetched Courses sheet (${response.data.length} chars)`);
+    const parsed = parseCSV(response.data);
+    console.log(`  ✓ Parsed to ${parsed.length} rows, first row has ${parsed[0]?.length || 0} cols`);
+    
+    return parsed;
+  } catch (error) {
+    console.warn(`⚠️ Failed to fetch Courses sheet:`, error);
+    return [];
+  }
+}
+
+/**
+ * Parse course data from CSV rows
+ * Expected: Column A=course_code, Column B=course_name
+ */
+function parseCourses(data: string[][]): Map<string, string> {
+  const courseMap = new Map<string, string>();
+
+  if (!data || data.length === 0) {
+    console.log('📚 No course data to parse');
+    return courseMap;
+  }
+
+  console.log(`🔍 Parsing ${data.length} rows of course data...`);
+
+  for (let rowIdx = 0; rowIdx < data.length; rowIdx++) {
+    const row = data[rowIdx] || [];
+    const courseCode = (row[0] || '').trim();
+    const courseName = (row[1] || '').trim();
+
+    const isEmptyRow = !courseCode && !courseName;
+    if (isEmptyRow) continue;
+
+    // Skip header rows
+    const lowerCode = courseCode.toLowerCase();
+    const lowerName = courseName.toLowerCase();
+    const looksHeader = (lowerCode.includes('code') || lowerCode.includes('course')) && 
+                        (lowerName.includes('name') || lowerName.includes('title'));
+    if (looksHeader) {
+      console.log(`  ⊘ Skipping header row`);
+      continue;
+    }
+
+    // Require both fields
+    if (!courseCode || !courseName) {
+      if (import.meta.env.DEV) {
+        console.warn(`  ⚠️ Row ${rowIdx + 1}: Skipping (missing required fields)`);
+      }
+      continue;
+    }
+
+    // Normalize and store
+    const normalizedCode = normalizeCourseCode(courseCode);
+    courseMap.set(normalizedCode, courseName);
+
+    if (import.meta.env.DEV) {
+      console.log(`  ✓ ${normalizedCode} -> ${courseName}`);
+    }
+  }
+
+  console.log(`📚 Parsed ${courseMap.size} courses`);
+  return courseMap;
+}
+
+/**
+ * Enrich class sessions with course names from the course map
+ */
+function enrichWithCourseNames(
+  timetable: SemesterTimetable,
+  courseMap: Map<string, string>
+): void {
+  for (const daySchedule of timetable.schedule) {
+    for (const classSession of daySchedule.classes) {
+      const normalizedCode = normalizeCourseCode(classSession.courseCode);
+      const courseName = courseMap.get(normalizedCode);
+      
+      if (courseName) {
+        classSession.courseName = courseName;
+      }
+    }
   }
 }
 

@@ -91,8 +91,14 @@ export const TimetableGrid: React.FC<TimetableGridProps> = React.memo(({ schedul
                     
                     <div className="flex flex-col gap-1 h-full">
                       <div className="font-bold text-sm text-gray-900 dark:text-gray-100">
-                        {classSession.courseCode}
+                        {classSession.courseName || classSession.courseCode}
                       </div>
+                      
+                      {classSession.courseName && classSession.courseName !== classSession.courseCode && (
+                        <div className="font-semibold text-sm text-gray-700 dark:text-gray-300">
+                          {classSession.courseCode}
+                        </div>
+                      )}
                       
                       <div className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,8 +194,14 @@ export const TimetableGrid: React.FC<TimetableGridProps> = React.memo(({ schedul
                             )}
                             
                             <div className="font-bold text-base text-gray-900 dark:text-gray-100 mb-2">
-                              {classSession.courseCode}
+                              {classSession.courseName || classSession.courseCode}
                             </div>
+                            
+                            {classSession.courseName && classSession.courseName !== classSession.courseCode && (
+                              <div className="font-semibold text-base text-gray-700 dark:text-gray-300 mb-2">
+                                {classSession.courseCode}
+                              </div>
+                            )}
                             
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">

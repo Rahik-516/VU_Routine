@@ -45,13 +45,14 @@ export const TimetablePage: React.FC = () => {
 
           // Apply search filter
           if (searchTerm) {
-            const courseMatch = c.courseCode.toLowerCase().includes(searchTerm);
+            const courseCodeMatch = c.courseCode.toLowerCase().includes(searchTerm);
+            const courseNameMatch = c.courseName && c.courseName.toLowerCase().includes(searchTerm);
             const teacherMatch = 
               (c.teacherName && c.teacherName.toLowerCase().includes(searchTerm)) ||
               (c.teacherInitials && c.teacherInitials.toLowerCase().includes(searchTerm));
             const roomMatch = c.room && c.room.toLowerCase().includes(searchTerm);
 
-            return courseMatch || teacherMatch || roomMatch;
+            return courseCodeMatch || courseNameMatch || teacherMatch || roomMatch;
           }
 
           return true;

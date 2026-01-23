@@ -8,6 +8,9 @@ export const SHEETS_CONFIG = {
   // The public Google Spreadsheet for VU CSE routine
   SPREADSHEET_ID: '1Sdmr60rcZeBCa2ofswUr9mxIreIj71W9HYM1RRhvfMM',
   
+  // Separate spreadsheet for course data (course names, descriptions, etc.)
+  COURSES_SPREADSHEET_ID: '19YMgCOudFvPpU3lazLAc8D83DKfIWjhnUJ8SngUWCiM',
+  
   // Set to true to use CSV export (no API key needed)
   // Set to false to use Google Sheets API v4
   USE_CSV_EXPORT: true,
