@@ -1,6 +1,7 @@
 import { Suspense, useEffect, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Analytics } from '@vercel/analytics/react';
 import { Layout } from '@/components/Layout';
 import { TimetablePage } from '@/pages/TimetablePage';
 const TeachersPage = lazy(() => import('@/pages/TeachersPage').then(m => ({ default: m.TeachersPage })));
@@ -69,6 +70,7 @@ function AppContent() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <Analytics />
     </QueryClientProvider>
   );
 }
